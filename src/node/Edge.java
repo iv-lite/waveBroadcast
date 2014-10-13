@@ -46,12 +46,16 @@ public class Edge extends Thread{
 
             this.finished = false;
 			while(this.socket == null || this.socket.isOutputShutdown()) {
-				try {
-					this.socket = new Socket(this.peerAddress, this.port);
-				} catch (IOException e) {
-					// TODO Auto-generated catch block
-					e.printStackTrace();
-				}
+				try{
+                    try {
+                        this.socket = new Socket(this.peerAddress, this.port);
+                    } catch (IOException e) {
+                        // Edge is unable to connect onto provided neighbor
+                        // Thus, it should sleep 1s before trying again.
+                        this.sleep(1000);
+                    }
+                }catch (InterruptedException e1) {
+                }
 			}
 			
 			boolean sended = false;
@@ -61,12 +65,16 @@ public class Edge extends Thread{
                     System.out.println("Sending "+data+" to "+peerAddress);
 					sended = true;
 				} catch (IOException e) {
-					try {
-						this.socket = new Socket(this.peerAddress, this.port);
-					} catch (IOException e1) {
-						// TODO Auto-generated catch block
-						e1.printStackTrace();
-					}
+                    try{
+                        try {
+                            this.socket = new Socket(this.peerAddress, this.port);
+                        } catch (IOException e1) {
+                            // Edge is unable to connect onto provided neighbor
+                            // Thus, it should sleep 1s before trying again.
+                            this.sleep(1000);
+                        }
+                    }catch (InterruptedException e1) {
+                    }
 				};
 			}
 		}
@@ -75,7 +83,7 @@ public class Edge extends Thread{
         try {
             this.socket.close();
         } catch (IOException e) {
-            e.printStackTrace();
+            // Socket was already closed.
         }
     }
 	

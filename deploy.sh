@@ -1,44 +1,71 @@
 #!/bin/bash
 
 USER="ibekwec";
-DEST_DIR="/home/ibekwec/";
+DEST_DIR="/home/${USER}/";
+DATA_DIR="data";
 JAR_FILE="broadcast.jar";
 IP_DATA_FILE="data.txt";
 PORT=8080;
 read -sp "password: " password;
-
-read -p "Copy ssh id to host?: (y/n)" wantCopySshId;
-if [ $wantCopySshId = "y" ]; then
-  ssh-copy-id -i ~/.ssh/id_rsa.pub $USER@${base};
-elif [ ! $wantCopySshId = "n" ]; then
-  $($0);
-fi
+echo "";
 
 # Get the number of hosts from the datafile
 hostNbr=$(sed -n '1{p;q}' $IP_DATA_FILE);
+hostWaitNbr=0;
+hostInitNbr=0;
 # Construct an array of hosts
 # with there extensions.
 for (( i=0; i<$hostNbr; i+=1 )); do
-  let line=i+2;
-  host=$(sed -n $line'{p;q}' $IP_DATA_FILE);
-  exts[$i]=${host##*.};
-  hosts[$i]=$(basename $host .${exts[$i]});
+    let line=i+2;
+    host=$(sed -n $line'{p;q}' $IP_DATA_FILE);
+    exts[$i]=${host##*.};
+    hosts[$i]=$(basename $host .${exts[$i]});
+
+    if [ ${exts[$i]} = "WAIT" ]; then
+        hostWait[$hostWaitNbr]=$i;
+        let hostWaitNbr=hostWaitNbr+1;
+    else
+        hostInit[$hostInitNbr]=$i;
+        let hostInitNbr=hostInitNbr+1;
+    fi
 done
 
+# Construction of each node neigbors files
+# for simplicity each node is supposed to be connected
+# with every other one.
+let neighborNbr=hostNbr-1;
+for (( i=0; i<$hostNbr; i+=1 )); do
+    neighborFile=$DATA_DIR"/neighbors_${hosts[$i]}";
+    echo $neighborNbr > $neighborFile;
+    for (( j=0; j<$hostNbr; j+=1 )); do
+        if [ $j -ne $i ]; then
+            echo "${hosts[$j]}" >> $neighborFile;
+        fi
+    done
 
-
-echo "${hosts[*]}";
-exit;
-
-done=0;
-for filename in data/*; do
-  ext=${filename##*.};
-  base=$(basename $filename .$ext);
-
-  sshpass -p$password scp -i ~/.ssh/id_rsa.pub $filename $USER@${base}:$DEST_DIR;
-  sshpass -p$password scp -i ~/.ssh/id_rsa.pub $JAR_FILE $USER@${base}:$DEST_DIR;
-  command="java -jar ${JAR_FILE} $PORT ${base}.${ext} $ext";
-
+    # Once the file is processed
+    # we can copy it onto the destination server.
+    sshpass -p$password scp $neighborFile $JAR_FILE $USER@${hosts[$i]}:$DEST_DIR;
 done
 
-echo "deployed";
+# launch background process in waiting nodes.
+for index in ${hostWait[*]}; do
+    remoteNeighborFile="neighbors_${hosts[$index]}";
+    command="java -jar $JAR_FILE $PORT $remoteNeighborFile WAIT";
+    sshpass -p$password ssh -f $USER@${hosts[$index]} "$command";
+done
+
+# launch background process in init nodes.
+let hostInitNbr=hostInitNbr-1;
+for (( i=0; i<$hostInitNbr; i+=1 )); do
+    index=${hostInit[$i]};
+    remoteNeighborFile="neighbors_${hosts[$index]}";
+    command="java -jar $JAR_FILE $PORT $remoteNeighborFile INIT";
+    sshpass -p$password ssh -f $USER@${hosts[$index]} "$command";
+done
+
+#launch ssh on last init node as a foreground process
+index=${hostInit[$hostInitNbr]};
+remoteNeighborFile="neighbors_${hosts[$index]}";
+command="java -jar $JAR_FILE $PORT $remoteNeighborFile INIT";
+sshpass -p$password ssh $USER@${hosts[$index]} "$command";
