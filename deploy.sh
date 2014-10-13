@@ -5,7 +5,7 @@ DEST_DIR="/home/${USER}/";
 DATA_DIR="data";
 JAR_FILE="broadcast.jar";
 IP_DATA_FILE="data.txt";
-PORT=8080;
+PORT=8000;
 read -sp "password: " password;
 echo "";
 
@@ -30,6 +30,7 @@ for (( i=0; i<$hostNbr; i+=1 )); do
     fi
 done
 
+echo "Copying processed files from data dir onto provided hosts.";
 # Construction of each node neigbors files
 # for simplicity each node is supposed to be connected
 # with every other one.
@@ -46,26 +47,34 @@ for (( i=0; i<$hostNbr; i+=1 )); do
     # Once the file is processed
     # we can copy it onto the destination server.
     sshpass -p$password scp $neighborFile $JAR_FILE $USER@${hosts[$i]}:$DEST_DIR;
+
+    echo ".";
 done
 
+echo "Launching background waiting nodes";
 # launch background process in waiting nodes.
 for index in ${hostWait[*]}; do
     remoteNeighborFile="neighbors_${hosts[$index]}";
-    command="java -jar $JAR_FILE $PORT $remoteNeighborFile WAIT";
+    command="killall java; java -jar $JAR_FILE $PORT $remoteNeighborFile WAIT";
     sshpass -p$password ssh -f $USER@${hosts[$index]} "$command";
+
+    echo ".";
 done
 
+echo "Launching background init nodes.";
 # launch background process in init nodes.
 let hostInitNbr=hostInitNbr-1;
 for (( i=0; i<$hostInitNbr; i+=1 )); do
     index=${hostInit[$i]};
     remoteNeighborFile="neighbors_${hosts[$index]}";
-    command="java -jar $JAR_FILE $PORT $remoteNeighborFile INIT";
+    command="killall java; java -jar $JAR_FILE $PORT $remoteNeighborFile INIT";
     sshpass -p$password ssh -f $USER@${hosts[$index]} "$command";
+
+    echo ".";
 done
 
 #launch ssh on last init node as a foreground process
 index=${hostInit[$hostInitNbr]};
 remoteNeighborFile="neighbors_${hosts[$index]}";
-command="java -jar $JAR_FILE $PORT $remoteNeighborFile INIT";
-sshpass -p$password ssh $USER@${hosts[$index]} "$command";
+command="killall java; java -jar $JAR_FILE $PORT $remoteNeighborFile INIT";
+sshpass -p$password ssh $USER@${hosts[$index]} "$command;";
