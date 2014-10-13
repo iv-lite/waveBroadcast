@@ -15,6 +15,7 @@ public class Node extends Thread{
 	private ArrayList<Edge> edges;
 	private int data;
 	private Server server;
+    private Node.type nodeType;
 	
 	private Semaphore counter;
 	
@@ -25,7 +26,7 @@ public class Node extends Thread{
 	public Node(int port, int destPort, ArrayList<InetAddress> peers, type type){
 		this.setPorts(port, destPort);
 		this.setPeers(peers);
-		if(type == Node.type.INIT)
+		if((this.nodeType = type) == Node.type.INIT)
 			this.send(Node.DEFAULT_DATA, false);
 	}
 	
@@ -34,21 +35,22 @@ public class Node extends Thread{
 	}
 	
 	public void send(int data, boolean release) {
-		this.setData(data);
-		for(Edge edge: edges)
-			edge.send(data);
-		if(this.counter.availablePermits() < 1)
-			System.out.println("Sending data to all peers.");
+		release = this.setData(data);
+        if( !release || this.nodeType == Node.type.WAIT )
+            for(Edge edge: edges)
+                edge.send(data);
 		if(release)
 			this.counter.release();
 	}
 
-	private void setData(int data) {
-		if(this.data == data)
-			return;
+	private boolean setData(int data) {
+		if(this.data == data || this.nodeType == type.WAIT)
+			return true;
 		
 		this.data = data;
 		System.out.println("Local data changed to: "+data);
+
+        return false;
 	}
 
 	public void setPorts(int port, int destPort){
@@ -83,15 +85,21 @@ public class Node extends Thread{
 				e.printStackTrace();
 			}
 		}
-		
-		System.out.println("Data was send to all peers");
 
 		for(Edge edge: edges)
 			edge.interrupt();
 		
 		this.server.interrupt();
-		
-		System.exit(0);
+
+        System.out.println("Finished");
+        boolean finished;
+        do{
+            finished = true;
+            for (Edge edge : edges)
+                finished = finished && edge.isFinished();
+        }while(!finished);
+        System.out.println("Data was send to all peers");
+        System.exit(0);
 	}
 
 	public int getPort() {

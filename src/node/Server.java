@@ -3,6 +3,7 @@ package node;
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.net.SocketException;
 
 public class Server extends Thread{
 	
@@ -25,14 +26,24 @@ public class Server extends Thread{
 		}
 		
 		while(!this.interrupted){
-			try {
-				Socket connection = this.socket.accept();
-				this.handle(connection);
-			} catch (IOException e) {
-				
-			}
+            try {
+                try {
+                    Socket connection = this.socket.accept();
+                    this.handle(connection);
+                } catch (SocketException e) {
+                    this.socket = new ServerSocket(this.parent.getPort());
+                }
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
 		}
-	}
+
+        try {
+            this.socket.close();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
 	
 	private void handle(Socket connection) throws IOException{
 		int data = connection.getInputStream().read();

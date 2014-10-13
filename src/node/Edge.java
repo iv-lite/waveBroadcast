@@ -15,6 +15,7 @@ public class Edge extends Thread{
 	private int port;
 	
 	private boolean interrupted;
+    private boolean finished;
 
 	public Edge(InetAddress peer) {
 		this(peer, Edge.DEFAULT_PORT);
@@ -25,6 +26,7 @@ public class Edge extends Thread{
 		this.peerAddress = peerAddress;
 		this.port = port;
 		this.interrupted = false;
+        this.finished = false;
 	}
 	
 	public void send(int data){
@@ -32,15 +34,17 @@ public class Edge extends Thread{
 	}
 	
 	public void run(){
-		while(!this.interrupted){
+		while(!this.interrupted || !this.toSend.isEmpty()){
 			int data = -47;
 
 			try {
+                this.finished = true;
 				data = toSend.pop();
 			} catch (InterruptedException e) {
-				return;
+				e.printStackTrace();
 			}
-			
+
+            this.finished = false;
 			while(this.socket == null || this.socket.isOutputShutdown()) {
 				try {
 					this.socket = new Socket(this.peerAddress, this.port);
@@ -51,9 +55,10 @@ public class Edge extends Thread{
 			}
 			
 			boolean sended = false;
-			while(!sended || !this.interrupted) {
+			while(!sended) {
 				try {
 					this.socket.getOutputStream().write(data);
+                    System.out.println("Sending "+data+" to "+peerAddress);
 					sended = true;
 				} catch (IOException e) {
 					try {
@@ -65,9 +70,20 @@ public class Edge extends Thread{
 				};
 			}
 		}
-	}
+        this.finished = true;
+
+        try {
+            this.socket.close();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
 	
 	public void interrupt(){
 		this.interrupted = true;
 	}
+
+    public boolean isFinished(){
+        return this.finished;
+    }
 }
