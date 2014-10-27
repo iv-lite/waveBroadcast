@@ -31,6 +31,10 @@ for (( i=0; i<$hostNbr; i+=1 )); do
 done
 
 echo "Copying processed files from data dir onto provided hosts.";
+updateFile="o";
+while [ ! $updateFile = "y" ] && [ ! $updateFile = "n" ]; do
+    read -sp "Update files on remote hosts ? (y/n) " updateFile;
+done
 # Construction of each node neigbors files
 # for simplicity each node is supposed to be connected
 # with every other one.
@@ -46,7 +50,9 @@ for (( i=0; i<$hostNbr; i+=1 )); do
 
     # Once the file is processed
     # we can copy it onto the destination server.
-    sshpass -p$password scp $neighborFile $JAR_FILE $USER@${hosts[$i]}:$DEST_DIR;
+    if [ $updateFile = "y" ]; then
+        sshpass -p$password scp $neighborFile $JAR_FILE $USER@${hosts[$i]}:$DEST_DIR;
+    fi
 
     echo ".";
 done
@@ -55,8 +61,8 @@ echo "Launching background waiting nodes";
 # launch background process in waiting nodes.
 for index in ${hostWait[*]}; do
     remoteNeighborFile="neighbors_${hosts[$index]}";
-    command="killall java; java -jar $JAR_FILE $PORT $remoteNeighborFile WAIT";
-    sshpass -p$password ssh -f $USER@${hosts[$index]} "$command";
+    command="java -jar $JAR_FILE $PORT $remoteNeighborFile WAIT";
+    sshpass -p$password ssh -f -v $USER@${hosts[$index]} "$command";
 
     echo ".";
 done
@@ -67,8 +73,8 @@ let hostInitNbr=hostInitNbr-1;
 for (( i=0; i<$hostInitNbr; i+=1 )); do
     index=${hostInit[$i]};
     remoteNeighborFile="neighbors_${hosts[$index]}";
-    command="killall java; java -jar $JAR_FILE $PORT $remoteNeighborFile INIT";
-    sshpass -p$password ssh -f $USER@${hosts[$index]} "$command";
+    command="java -jar $JAR_FILE $PORT $remoteNeighborFile INIT";
+    sshpass -p$password ssh -v -f $USER@${hosts[$index]} "$command";
 
     echo ".";
 done
@@ -76,5 +82,5 @@ done
 #launch ssh on last init node as a foreground process
 index=${hostInit[$hostInitNbr]};
 remoteNeighborFile="neighbors_${hosts[$index]}";
-command="killall java; java -jar $JAR_FILE $PORT $remoteNeighborFile INIT";
+command="java -jar $JAR_FILE $PORT $remoteNeighborFile INIT";
 sshpass -p$password ssh $USER@${hosts[$index]} "$command;";
